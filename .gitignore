@@ -1,0 +1,53 @@
+# Tooling / local workspace
+.claude/
+.planning/
+.playwright-mcp/
+AGENTS.md
+GEMINI.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.uv-cache/
+
+# Testing / typing / linting caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Model artifacts and datasets (never committed — fetched by hash at load time)
+models/
+weights/
+*.onnx
+*.pb
+*.pth
+*.pkl
+data/
+datasets/
+outputs/
+
+# Local secrets and config
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Biometric data — never commit
+captures/
+enrollments/
+templates/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
