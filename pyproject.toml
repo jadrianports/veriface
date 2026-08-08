@@ -24,6 +24,13 @@ veriface = "veriface.cli:app"
 
 [project.optional-dependencies]
 server = []
+# Empty through plan 01-04: LFW fetch/extraction, the manifest sampler, and
+# tier config use only httpx/pydantic/typer (already core deps) plus stdlib
+# tarfile/csv/hashlib. `gdown` is the first genuinely eval-only dependency,
+# admitted through plan 01-07's package-legitimacy gate. Until then, `veriface
+# data ...` is importable even without this extra installed — the `_try_mount`
+# guard in veriface/cli/__init__.py is correct in shape but has nothing to
+# gate on yet (see 01-04-SUMMARY.md).
 eval = []
 demo = []
 

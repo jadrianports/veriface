@@ -2,9 +2,9 @@
 
 A module-level ``app`` mounts each subcommand group explicitly (name
 inference from the callback is deprecated in current typer, so every mount
-passes ``name=`` explicitly). Plan 01-04 mounts ``data`` here; that group is
-mounted behind ``_try_mount`` because ``veriface_eval`` — and therefore its
-dependencies — may not be installed if the ``[eval]`` extra was skipped.
+passes ``name=`` explicitly). ``data`` (plan 01-04) is mounted behind
+``_try_mount`` because ``veriface_eval`` — and therefore its dependencies —
+may not be installed if the ``[eval]`` extra was skipped.
 """
 
 from __future__ import annotations
@@ -36,9 +36,7 @@ def _try_mount(module_path: str, attr: str, name: str) -> None:
     app.add_typer(sub_app, name=name)
 
 
-# Future mounts (not yet implemented — do not pre-declare an import for a
-# module that does not exist yet):
-#   _try_mount("veriface_eval.cli", "data_app", "data")   — plan 01-04
+_try_mount("veriface_eval.cli", "data_app", "data")
 
 
 if __name__ == "__main__":

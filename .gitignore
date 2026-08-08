@@ -38,6 +38,21 @@ htmlcov/
 /datasets/
 /outputs/
 
+# Dataset archive containers a fetcher may leave behind on an interrupted run
+# (D-25: every fetcher deletes its own archive on success, but nothing should
+# ever depend on that happening before the process is committable). Not
+# root-anchored — these extensions have no legitimate source-tree use.
+*.tgz
+*.tar.gz
+*.zip
+*.zip.[0-9][0-9][0-9]
+
+# CelebA-Spoof subset manifests (plan 01-07) are committed on purpose — paths
+# and labels only, no image bytes (D-19, OPS-04). Negated explicitly so a
+# future data-shaped ignore pattern can never silently swallow them.
+!/src/veriface_eval/datasets/manifests/
+!/src/veriface_eval/datasets/manifests/*.csv
+
 # Local secrets and config
 .env
 .env.*
