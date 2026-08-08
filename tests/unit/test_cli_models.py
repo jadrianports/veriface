@@ -23,15 +23,50 @@ class _StubSource:
 
 
 def _patch_resolve_source(monkeypatch, path, *, exists: bool = True) -> None:
-    # `verify` drives ModelRegistry.path(), which resolves sources through
-    # veriface.models.registry's own imported name; `fetch` calls
-    # resolve_source directly from veriface.cli.models. Patch both so either
-    # command path is exercised against the stub.
+    # `verify` drives ModelRegistry.path() and `fetch` drives
+    # ModelRegistry.fetch_each() (WR-01) — both resolve sources through
+    # veriface.models.registry's own imported name, so patching it there is
+    # enough for either command path.
     def stub_factory(spec):
         return _StubSource(path, exists=exists)
 
-    monkeypatch.setattr(models_module, "resolve_source", stub_factory)
     monkeypatch.setattr(registry_module, "resolve_source", stub_factory)
+
+
+def test_fetch_against_fake_profile_reports_the_materialized_path(
+    fake_artifact, monkeypatch, isolated_settings
+):
+    # `fetch` now drives ModelRegistry.fetch_each() (WR-01), which reads
+    # PROFILES through registry_module's own imported name.
+    monkeypatch.setattr(registry_module, "PROFILES", {"default": (fake_artifact.spec,)})
+    _patch_resolve_source(monkeypatch, fake_artifact.path)
+
+    result = runner.invoke(app, ["models", "fetch", "--profile", "default"])
+
+    assert result.exit_code == 0
+    assert f"{fake_artifact.spec.name}  {fake_artifact.path}" in result.stdout
+
+
+def test_fetch_reports_failed_for_a_spec_whose_source_cannot_materialize(
+    fake_artifact, monkeypatch, isolated_settings
+):
+    monkeypatch.setattr(registry_module, "PROFILES", {"default": (fake_artifact.spec,)})
+
+    def _raising_stub_factory(spec):
+        class _RaisingSource:
+            def materialize(self, spec, cache_dir, *, allow_download):
+                from veriface.errors import ArtifactSourceError
+
+                raise ArtifactSourceError("boom")
+
+        return _RaisingSource()
+
+    monkeypatch.setattr(registry_module, "resolve_source", _raising_stub_factory)
+
+    result = runner.invoke(app, ["models", "fetch", "--profile", "default"])
+
+    assert result.exit_code == 1
+    assert f"{fake_artifact.spec.name}  FAILED" in result.stdout
 
 
 def test_verify_against_fake_profile_ok_then_corrupted_mismatch(

@@ -10,12 +10,13 @@ constructing a session.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 
 import structlog
 
 from veriface.config import VerifaceSettings
-from veriface.errors import ArtifactIntegrityError, ArtifactNotCachedError
+from veriface.errors import ArtifactIntegrityError, ArtifactNotCachedError, VerifaceError
 from veriface.hashing import sha256_file
 from veriface.models.runtime import Session, open_session
 from veriface.models.sources import resolve_source
@@ -33,7 +34,10 @@ class ModelRegistry:
     def fetch(self, profile: str) -> list[Path]:
         """Download every spec in ``profile``, returning their cached paths.
 
-        The only method on this class permitted to touch the network.
+        Raises on the first failing spec — for a caller that wants to keep
+        going and report every failure individually, use ``fetch_each``
+        instead. Together, ``fetch``/``fetch_each`` are the only methods on
+        this class permitted to touch the network.
         """
         paths: list[Path] = []
         for spec in PROFILES[profile]:
@@ -41,6 +45,25 @@ class ModelRegistry:
             path = source.materialize(spec, self._settings.cache_dir, allow_download=True)
             paths.append(path)
         return paths
+
+    def fetch_each(self, profile: str) -> Iterator[tuple[ArtifactSpec, Path | VerifaceError]]:
+        """Download every spec in ``profile``, yielding a per-spec result.
+
+        Unlike ``fetch``, a single spec's failure does not abort the rest of
+        the profile — each ``(spec, result)`` pair carries either the
+        materialized ``Path`` or the ``VerifaceError`` that spec raised, so a
+        caller (the CLI's ``fetch`` command) can report every failure without
+        re-implementing this loop or reaching for the network itself (WR-01:
+        this and ``fetch`` remain the only network-permitted methods).
+        """
+        for spec in PROFILES[profile]:
+            source = resolve_source(spec)
+            try:
+                path = source.materialize(spec, self._settings.cache_dir, allow_download=True)
+            except VerifaceError as exc:
+                yield spec, exc
+                continue
+            yield spec, path
 
     def path(self, spec: ArtifactSpec) -> Path:
         """Return the cached local path for ``spec`` without downloading.
