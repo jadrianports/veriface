@@ -1,0 +1,72 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Runs the committed pre-commit config (.pre-commit-config.yaml) rather than
+  # a hand-written lint step — local and CI execute the identical check list
+  # and cannot drift (D-31).
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --dev
+      - run: uv run pre-commit run --all-files
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --all-extras --dev
+      - run: uv run mypy --strict src/
+
+  # No network access: HF_HUB_OFFLINE=1 at the job level turns an accidental
+  # download attempt into a hard failure instead of a quiet success (D-29).
+  unit:
+    runs-on: ubuntu-latest
+    env:
+      HF_HUB_OFFLINE: "1"
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"] # 3.12 is the reference (D-14), 3.13 the drift canary
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --frozen --all-extras --dev
+      - run: uv run pytest tests/unit --cov=src --cov-report=term-missing --cov-fail-under=0
+
+  # Only meaningful with real network + a clean/populated artifact cache, so
+  # it runs on main and on manual dispatch, never on every push or PR (D-29).
+  integration:
+    needs: [lint, typecheck, unit]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      VERIFACE_CACHE_DIR: ${{ github.workspace }}/.cache/veriface-artifacts
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --all-extras --dev
+      # Keyed on the pinned artifact digests that already serve verification
+      # (src/veriface/models/specs.py) — the cache invalidates exactly when
+      # the spec table changes and never otherwise; no second, hand-maintained
+      # cache key is introduced.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.VERIFACE_CACHE_DIR }}
+          key: artifacts-${{ hashFiles('src/veriface/models/specs.py') }}
+      - run: uv run pytest tests/integration

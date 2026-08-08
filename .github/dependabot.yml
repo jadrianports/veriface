@@ -1,0 +1,19 @@
+# Monthly, not weekly (D-34) — frequent enough that uv.lock and pinned Action
+# SHAs don't silently age, rare enough not to interrupt phase work.
+#
+# NOTE: research (01-RESEARCH.md Pitfall 4) found a report of Dependabot
+# updating uv.lock without a matching pyproject.toml bump. Auto-merge is
+# deliberately not enabled here. The first two or three PRs each need a
+# manual `uv sync --locked` check before merge, until that behavior is
+# confirmed reliable on this project's lockfile.
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"

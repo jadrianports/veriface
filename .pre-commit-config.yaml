@@ -1,0 +1,46 @@
+# The single source of truth for the project's check list (D-31).
+# CI (.github/workflows/ci.yml) runs `pre-commit run --all-files` against this
+# exact config rather than a hand-written lint step, so local and CI cannot
+# drift. Hooks here are a convenience — bypassable, absent on a fresh clone —
+# CI is the real gate and never assumes they ran.
+#
+# NOTE for plan 01-06: this file is appended to (a new hook entry for the ADR
+# index-check tool at tools/adr_index.py), not replaced. Keep each hook's
+# `repo:`/`rev:`/`hooks:` block self-contained so a later addition is a
+# straightforward new list item under `repos:`.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.2
+    hooks:
+      - id: ruff
+        name: ruff (lint)
+        args: ["--no-fix"]
+      - id: ruff-format
+        name: ruff (format check)
+        args: ["--check"]
+
+  # A `local`/`system` hook rather than `mirrors-mypy`, deliberately: mirrors-mypy
+  # runs in its own isolated venv seeded only from `additional_dependencies`, which
+  # would need to duplicate every runtime dependency in pyproject.toml (onnxruntime,
+  # typer, httpx, opencv-python-headless, structlog, huggingface-hub...) and drift
+  # the moment one changes. Invoking the project's own `uv run mypy --strict src/`
+  # is the exact command the `typecheck` CI job runs directly — this is what makes
+  # local and CI structurally unable to diverge (D-31), rather than merely similar.
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy --strict (src/)
+        entry: uv run mypy --strict src/
+        language: system
+        files: ^src/
+        pass_filenames: false
