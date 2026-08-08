@@ -13,6 +13,7 @@ import shutil
 import zipfile
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Protocol
+from urllib.parse import urlparse
 
 import httpx
 from huggingface_hub import hf_hub_download
@@ -179,3 +180,15 @@ def resolve_source(spec: ArtifactSpec) -> ArtifactSource:
     if spec.source == "https":
         return HttpsSource()
     raise ArtifactSourceError(f"Unknown artifact source {spec.source!r} for spec {spec.name!r}")
+
+
+def describe_source(spec: ArtifactSpec) -> str:
+    """Human-readable ``"<kind> (<host>)"`` label for documentation renderers.
+
+    Lives here rather than in ``licensing.py`` precisely because computing it
+    requires branching on ``spec.source`` — this module is the only one
+    permitted to make that branch (see the module docstring).
+    """
+    if spec.source == "hf":
+        return f"{spec.source} (huggingface.co)"
+    return f"{spec.source} ({urlparse(spec.locator).netloc})"

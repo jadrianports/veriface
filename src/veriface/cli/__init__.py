@@ -2,10 +2,9 @@
 
 A module-level ``app`` mounts each subcommand group explicitly (name
 inference from the callback is deprecated in current typer, so every mount
-passes ``name=`` explicitly). Later plans mount ``docs`` (plan 01-02) and
-``data`` (plan 01-04) here; the ``data`` group is mounted behind
-``_try_mount`` because ``veriface_eval`` — and therefore its dependencies —
-may not be installed if the ``[eval]`` extra was skipped.
+passes ``name=`` explicitly). Plan 01-04 mounts ``data`` here; that group is
+mounted behind ``_try_mount`` because ``veriface_eval`` — and therefore its
+dependencies — may not be installed if the ``[eval]`` extra was skipped.
 """
 
 from __future__ import annotations
@@ -15,10 +14,12 @@ from typing import Any
 
 import typer
 
+from veriface.cli.docs import docs_app
 from veriface.cli.models import models_app
 
 app = typer.Typer(no_args_is_help=True)
 app.add_typer(models_app, name="models")
+app.add_typer(docs_app, name="docs")
 
 
 def _try_mount(module_path: str, attr: str, name: str) -> None:
@@ -38,7 +39,6 @@ def _try_mount(module_path: str, attr: str, name: str) -> None:
 # Future mounts (not yet implemented — do not pre-declare an import for a
 # module that does not exist yet):
 #   _try_mount("veriface_eval.cli", "data_app", "data")   — plan 01-04
-#   app.add_typer(docs_app, name="docs")                  — plan 01-02
 
 
 if __name__ == "__main__":
