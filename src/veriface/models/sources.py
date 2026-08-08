@@ -184,9 +184,24 @@ class HttpsSource:
 def resolve_source(spec: ArtifactSpec) -> ArtifactSource:
     """Dispatch on ``spec.source`` to the matching resolver.
 
-    Raises ``ArtifactSourceError`` for an unknown source value.
+    Raises ``ArtifactSourceError`` for an unknown source value, and for an
+    ``hf``-source spec that also declares a non-null ``member`` (WR-03):
+    ``HuggingFaceSource.materialize`` never reads ``spec.member``, so that
+    combination would otherwise silently download and cache the whole HF
+    asset instead of extracting the intended archive member. This check
+    belongs here rather than as an ``ArtifactSpec`` model validator because
+    ``resolve_source`` is the one place under ``src/`` permitted to branch on
+    ``spec.source`` (see the module docstring) — every code path that could
+    reach ``HuggingFaceSource`` passes through here first, so the invalid
+    combination is caught before any network call, not merely documented.
     """
     if spec.source == "hf":
+        if spec.member is not None:
+            raise ArtifactSourceError(
+                f"ArtifactSpec {spec.name!r} declares a non-null member "
+                f"({spec.member!r}) but source='hf' — HuggingFaceSource never reads "
+                "spec.member; an archive-member spec must use source='https'."
+            )
         return HuggingFaceSource()
     if spec.source == "https":
         return HttpsSource()
