@@ -1,0 +1,29 @@
+veriface
+Copyright the veriface project contributors.
+
+This product is licensed under the Apache License, Version 2.0.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+
+Third-party model artifacts
+----------------------------
+
+veriface does not vendor or redistribute any model weights. The artifacts below are downloaded at runtime, only at the user's explicit request (`veriface models fetch`), directly from each artifact's own upstream distribution.
+
+* scrfd_10g_bnkps (https, revision v0.7)
+  License: InsightFace model zoo — non-commercial research use only
+  Training data provenance: InsightFace-curated detection training sets
+
+* arcface_w600k_r50 (https, revision v0.7)
+  License: InsightFace model zoo — non-commercial research use only
+  Training data provenance: MS1MV2/MS1MV3-family refined sets, cleaned derivatives of the withdrawn MS-Celeb-1M
+
+* minifasnet_v1se (https, revision weights)
+  License: Apache-2.0
+  Training data provenance: Minivision AI's own presentation-attack-detection dataset, via minivision-ai/Silent-Face-Anti-Spoofing (MiniFASNetV1SE, 4.0_80x80). ONNX conversion by yakhyo/face-anti-spoofing (Apache-2.0), a direct re-export of the same upstream .pth weights — no HF Hub ONNX port of V1SE exists (verified during plan 01-02; see 01-02-SUMMARY.md). Not derived from MS-Celeb-1M or any face-recognition training corpus.
+
+* minifasnet_v2se (hf, revision d29c87568ca9b5662da803b10f217c4db20b142b)
+  License: Apache-2.0
+  Training data provenance: Minivision AI's own presentation-attack-detection dataset, via minivision-ai/Silent-Face-Anti-Spoofing (MiniFASNetV2, 2.7_80x80). ONNX conversion by garciafido/minifasnet-v2-anti-spoofing-onnx on Hugging Face Hub, weights bit-equivalent to upstream .pth, format-converted only. Not derived from MS-Celeb-1M or any face-recognition training corpus.
+
+The non-commercial-research restriction carried by the InsightFace model-zoo artifacts above governs use of this project's default profile, regardless of veriface's own Apache-2.0 grant on its own source code.
