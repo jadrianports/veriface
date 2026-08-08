@@ -30,9 +30,7 @@ _CPU_PROVIDER = "CPUExecutionProvider"
 class Session(Protocol):
     """A narrow, fully typed view over ``onnxruntime.InferenceSession``."""
 
-    def run(
-        self, output_names: list[str] | None, input_feed: dict[str, Any]
-    ) -> list[Any]: ...
+    def run(self, output_names: list[str] | None, input_feed: dict[str, Any]) -> list[Any]: ...
 
     def get_providers(self) -> list[str]: ...
 

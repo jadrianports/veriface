@@ -23,9 +23,7 @@ from veriface.models.specs import ArtifactSpec
 class ArtifactSource(Protocol):
     """A resolver capable of materializing an artifact spec to a local path."""
 
-    def materialize(
-        self, spec: ArtifactSpec, cache_dir: Path, *, allow_download: bool
-    ) -> Path:
+    def materialize(self, spec: ArtifactSpec, cache_dir: Path, *, allow_download: bool) -> Path:
         """Return the local path to ``spec``'s artifact.
 
         Raises ``FileNotFoundError`` if ``allow_download`` is ``False`` and
@@ -38,9 +36,7 @@ class ArtifactSource(Protocol):
 class HuggingFaceSource:
     """Resolves specs whose ``source`` is ``"hf"`` via the Hugging Face Hub."""
 
-    def materialize(
-        self, spec: ArtifactSpec, cache_dir: Path, *, allow_download: bool
-    ) -> Path:
+    def materialize(self, spec: ArtifactSpec, cache_dir: Path, *, allow_download: bool) -> Path:
         try:
             path = hf_hub_download(
                 repo_id=spec.locator,
@@ -50,9 +46,7 @@ class HuggingFaceSource:
                 local_files_only=not allow_download,
             )
         except LocalEntryNotFoundError as exc:
-            raise FileNotFoundError(
-                f"Artifact {spec.name!r} is not cached in {cache_dir}"
-            ) from exc
+            raise FileNotFoundError(f"Artifact {spec.name!r} is not cached in {cache_dir}") from exc
         return Path(path)
 
 
