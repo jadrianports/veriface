@@ -28,7 +28,7 @@ import shutil
 import zipfile
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from veriface.errors import ArtifactSourceError, VerifaceError
@@ -298,6 +298,13 @@ def build_label_index(archive: zipfile.ZipFile) -> list[LabelIndexEntry]:
     archive this session (see the module docstring) — the first real
     invocation of this function should double-check the assumed path shape
     against a handful of real members before trusting the full index.
+
+    Parses the member path with ``PurePosixPath`` (WR-07), not a bare
+    ``pathlib.Path`` — zip member names are always POSIX-style regardless of
+    host OS, matching every other archive-member path parse in this codebase
+    (``sources.py``'s ``validate_member_path``, ``lfw.py``'s
+    ``_extract_tar_safely``) rather than being the one host-platform-dependent
+    exception.
     """
     entries: list[LabelIndexEntry] = []
     for member in archive.namelist():
@@ -315,7 +322,7 @@ def build_label_index(archive: zipfile.ZipFile) -> list[LabelIndexEntry]:
             continue  # unrecognised label value — exclude rather than misclassify
 
         image_member = member[: -len(".json")]
-        parts = Path(image_member).parts
+        parts = PurePosixPath(image_member).parts
         if len(parts) < 3:
             continue
         subject_id = parts[-3]
