@@ -16,6 +16,7 @@ dependencies = [
   "onnxruntime>=1.28,<2",
   "opencv-python-headless>=5,<6",
   "structlog",
+  "httpx>=0.28,<1",
 ]
 
 [project.scripts]
@@ -23,7 +24,7 @@ veriface = "veriface.cli:app"
 
 [project.optional-dependencies]
 server = []
-eval = ["httpx>=0.28,<1"]
+eval = []
 demo = []
 
 [tool.hatch.build.targets.wheel]
