@@ -44,3 +44,14 @@ repos:
         language: system
         files: ^src/
         pass_filenames: false
+
+      # ADR index check (plan 01-06): docs/adr/README.md is generated from the
+      # committed docs/adr/NNNN-*.md records by tools/adr_index.py --write. A
+      # new or renumbered ADR cannot land with a stale index, since --check
+      # regenerates the index in memory and diffs it against what's committed.
+      - id: adr-index
+        name: ADR index up to date (docs/adr/)
+        entry: uv run python tools/adr_index.py --check
+        language: system
+        files: ^docs/adr/
+        pass_filenames: false
