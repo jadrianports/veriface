@@ -24,14 +24,17 @@ veriface = "veriface.cli:app"
 
 [project.optional-dependencies]
 server = []
-# Empty through plan 01-04: LFW fetch/extraction, the manifest sampler, and
-# tier config use only httpx/pydantic/typer (already core deps) plus stdlib
-# tarfile/csv/hashlib. `gdown` is the first genuinely eval-only dependency,
-# admitted through plan 01-07's package-legitimacy gate. Until then, `veriface
-# data ...` is importable even without this extra installed — the `_try_mount`
-# guard in veriface/cli/__init__.py is correct in shape but has nothing to
-# gate on yet (see 01-04-SUMMARY.md).
-eval = []
+# LFW fetch/extraction, the manifest sampler, and tier config use only
+# httpx/pydantic/typer (already core deps) plus stdlib tarfile/csv/hashlib.
+# `gdown` (plan 01-07) is the first genuinely eval-only dependency, admitted
+# through a blocking package-legitimacy checkpoint (see 01-07-SUMMARY.md) —
+# it makes `_try_mount`'s ModuleNotFoundError guard in
+# `veriface/cli/__init__.py` structurally meaningful: `veriface data` now
+# raises a clear ImportError, not a silent import, when installed without
+# this extra (verified live in 01-07, closing 01-04's D5 coverage gap).
+eval = [
+    "gdown>=6.1.0",
+]
 demo = []
 
 [tool.hatch.build.targets.wheel]
