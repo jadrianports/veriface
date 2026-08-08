@@ -29,9 +29,7 @@ from veriface_eval.datasets.manifest import (
 _SPLITS = {"train": 0.6, "val": 0.2, "test": 0.2}
 
 
-def _make_label_index(
-    *, subjects: int = 24, seed: int = 1
-) -> list[tuple[str, str, str]]:
+def _make_label_index(*, subjects: int = 24, seed: int = 1) -> list[tuple[str, str, str]]:
     """A synthetic ``(subject_id, relative_path, spoof_class)`` label index.
 
     Per-subject, per-class counts are deliberately uneven (1..6 images per
@@ -140,7 +138,8 @@ def test_no_manifest_row_carries_a_video_replay_class() -> None:
 def test_class_balance_within_declared_tolerance() -> None:
     label_index = _make_label_index(subjects=24)
     tolerance = 0.0
-    _, rows = build_manifest(label_index, tier="eval", seed=11, params=_params(12, tolerance=tolerance))
+    params = _params(12, tolerance=tolerance)
+    _, rows = build_manifest(label_index, tier="eval", seed=11, params=params)
 
     counts = Counter(row.spoof_class for row in rows)
     assert set(counts) == {"live", "print", "screen_replay"}
@@ -160,7 +159,9 @@ def test_no_subject_spans_two_splits_within_a_tier() -> None:
     for row in rows:
         subject_to_splits.setdefault(row.subject_id, set()).add(row.split)
 
-    offenders = {subject: splits for subject, splits in subject_to_splits.items() if len(splits) > 1}
+    offenders = {
+        subject: splits for subject, splits in subject_to_splits.items() if len(splits) > 1
+    }
     assert offenders == {}
 
 
