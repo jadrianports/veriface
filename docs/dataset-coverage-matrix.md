@@ -18,6 +18,21 @@ below as explicitly not covered, with the reason for each.
 | video replay | **out of v1 scope** | PAD-03 (video-replay rejection) was shelved out of v1 by user decision (D-39). The passive-PAD architecture is the same mechanism screen-replay uses, so the marginal engineering cost was low, but the decision stands as made. Revisit in v2 alongside the injection/deepfake work, where motion and stream-integrity analysis already belong. `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`, and `.planning/PROJECT.md` still name video replay as of this writing — D-39 assigns those edits to a follow-up process step outside this plan; this matrix reflects the decision already made, not those pending document edits. |
 | 3D mask | **architecturally covered, unvalidated** | The PAD model class (MiniFASNet) is architecturally capable of contributing signal against 3D/silicone mask presentation attacks, but no obtainable dataset exists to validate that capability — the gated benchmark corpora that would support this (OULU-NPU, SiW, CASIA-FASD) require signed institutional agreements this project cannot obtain (see `docs/data-requests.md`), and physical masks are not available for a personal acceptance-set capture. This will be documented as explicitly unvalidated wherever PAD capability is described, never silently claimed. |
 
+## Attack-type resolution depends on the official annotation set
+
+The `print`/`screen replay` split above is only meaningful against CelebA-Spoof's own official
+distribution (Google Drive or Baidu Drive, per its GitHub README), because only that distribution
+carries the per-image 43-field annotation — including the Spoof Type label this project's
+attack-balanced sampler keys on. At least one third-party re-host exists that reduces this to a
+**binary** `live`/`spoof` label with no attack-type field at all (evaluated and rejected during
+01-07's spike — see `docs/celeba-spoof-acquisition.md` § Rejected Alternatives for the specific
+mirror and why). Any future acquisition path that trades the official annotation set for a
+binary-labeled mirror to save disk or bandwidth silently loses attack-type resolution — the
+attack-balanced sampler would degrade to a live/spoof binary sampler while still passing its own
+tests, and D-39's video-replay exclusion becomes unenforceable (a class the labels cannot
+identify cannot be excluded from). Attack-type-resolved PAD metrics in this project always depend
+on the official annotation set, never a binary mirror, regardless of disk pressure.
+
 ## Demographic-fairness source
 
 Bias/fairness evaluation across demographic subgroups (EVAL-06, Phase 2) is backed by **BFW

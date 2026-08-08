@@ -59,6 +59,10 @@ files = ["src"]
 module = "onnxruntime.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "gdown.*"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [

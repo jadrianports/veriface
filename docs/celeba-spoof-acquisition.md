@@ -1,10 +1,18 @@
-# CelebA-Spoof Acquisition — Measured Findings (Plan 01-07, Task 2 Spike)
+# CelebA-Spoof Acquisition — Measured Findings (Plan 01-07)
 
-**Status: the reassembly mechanism was NOT proven this session.** Two independent blockers
-stopped this spike before any archive volume could be downloaded — see § Blockers. Everything
-below that does not depend on a download was measured live against the real distribution.
-This document is the input to the Task 3 decision checkpoint; it does not select or apply an
-acquisition option itself.
+**Status: ACQUISITION DEFERRED TO PHASE 2.** Decided by the user on 2026-08-08, on the measured
+numbers this document records. The full corpus (~71.7-77.0 GB) does not fit this machine's
+measured free disk (~74-76 GiB) inside the mandated 10 GB safety floor, under any of the four
+candidate acquisition sequences evaluated at the Task 3 decision checkpoint (§ 6) — the developer
+decision was to defer rather than force it. **No CelebA-Spoof bytes were downloaded, no volume
+was reassembled, no eval-tier subset was extracted, and no manifest was committed.** The
+measurements below are the deliverable of this plan; they are what Phase 2 starts from.
+
+The fetcher mechanism itself (`src/veriface_eval/datasets/celeba_spoof.py`) was implemented in
+full against these measurements, wired into `veriface data fetch celeba-spoof`, and degrades
+honestly today: it checks for the corpus's local presence before doing anything else and raises a
+clear `AcquisitionDeferredError` naming this deferral and pointing back at this document, rather
+than attempting a download, silently skipping, or faking success.
 
 Measured: 2026-08-08, this repository, live network access to `raw.githubusercontent.com` and
 `drive.google.com`.
@@ -121,6 +129,45 @@ avoid the corpus-sized download. Evaluated against § 5's arithmetic:
 numbers.** This is flagged explicitly for the Task 3 decision rather than silently picking the
 "least bad" one — see the recommendation carried into that checkpoint.
 
+## 6.5. Rejected alternative: a binary-labeled Hugging Face mirror
+
+While this spike was blocked on the download-permission wall (§ 7, Blocker A), the orchestrator
+independently investigated whether an HF-hosted mirror of CelebA-Spoof could sidestep the disk
+problem entirely. One was found: **`Ar4ikov/celebA_spoof`** on Hugging Face — the full corpus (72
+GB, `download_size` 72,011,056,582 bytes) re-published as **167 individually-addressable parquet
+shards** (train 93 / valid 9 / test 65, ~500 MB each). This would completely dissolve the § 5
+disk problem: selective shard download, ~5 GB peak, reusing the project's existing
+`HuggingFaceSource` resolver and per-shard LFS digests instead of a from-scratch `gdown` fetcher.
+
+**It is nonetheless unusable for this project, and this is the important part.** Its schema is
+only `Filepath` (image), `Bbox` (int64 sequence), `Class` (string) — and `Class` is **binary**.
+Verified via the HF datasets-server statistics endpoint on the test split: `n_unique: 2`,
+frequencies `{"live": 2944, "spoof": 7077}`. The entire spoof-type taxonomy (print / replay /
+paper-cut / 3D-mask, illumination, environment) present in the official 43-field annotation is
+gone — collapsed to a single live/spoof bit.
+
+**Consequences if this mirror were adopted instead of the official distribution:**
+- 01-04's **attack-balanced** sampler would silently degrade to a live/spoof binary sampler while
+  still passing every one of its existing tests — nothing in the sampler's own test suite asserts
+  against a specific *number* of classes, only that classes present are balanced, so this
+  degradation would not be caught by re-running the existing suite.
+- **D-39's video-replay exclusion becomes unenforceable.** You cannot exclude a class the labels
+  cannot identify. The `SpoofClass` `Literal`-typed structural exclusion in
+  `veriface_eval/datasets/manifest.py` would become decorative — technically still present in the
+  type, but never actually doing the exclusion work it was built for, because the binary label
+  never distinguishes a video-replay sample from any other spoof sample in the first place.
+- The mirror also states **no license** — no redistribution terms recorded on the dataset card at
+  all, which is a materially worse licensing position than the official distribution's clearly
+  stated (if restrictive) non-commercial-research terms.
+
+**Recorded here so a future phase under disk pressure does not rediscover this the hard way and
+adopt it believing it is a free win.** It is not a substitute for the official distribution for
+any metric this project reports as attack-type-resolved — see also
+`docs/dataset-coverage-matrix.md` § "Attack-type resolution depends on the official annotation
+set". If disk pressure returns in Phase 2, the right lever is freeing headroom or using scratch
+storage (§ recommendation below), not swapping to a mirror that quietly removes the labels the
+whole manifest/sampler design depends on.
+
 ## 7. Blockers encountered this session
 
 ### Blocker A — harness Bash tool-permission denial (not a disk-budget failure)
@@ -161,18 +208,51 @@ downloading even the single smallest volume (`.074`) to inspect with `7z l` / `z
 Recommend testing this specifically, with only `.074`, once Blocker A is resolved, before
 attempting anything larger.
 
-## 9. What this task explicitly did NOT do (scope discipline, not an oversight)
+## 9. What this plan explicitly did NOT do (deferral, not an oversight)
 
 - No eval-tier extraction occurred.
-- No manifest was built.
+- No manifest was built or committed (`src/veriface_eval/datasets/manifests/celeba_spoof_eval.csv`
+  does not exist; `DATASET_CONFIGS["eval"].manifest_sha256` in `config.py` remains the sentinel
+  `load_dataset_config` already rejects — no digest was invented for a manifest that does not
+  exist).
 - `zipfile.ZipFile(...).testzip()` on the reassembled archive: **NOT ATTEMPTED** — no volumes
   were downloaded, so there was nothing to concatenate or test.
 - No fallback tool (`zip -FF`, `py7zr`/shelled `7z`, the Baidu Drive mirror) was exercised, because
   none had any bytes to operate on.
 - No archive member was extracted; none exists locally to extract.
+- `tests/integration/test_celeba_spoof_fetch.py` (which asserts against a materialized tier) was
+  not written this plan — there is nothing materialized for it to assert against yet.
 
-## 10. Disk state at the end of this task
+## 10. What this plan DID deliver (byte-independent)
+
+`src/veriface_eval/datasets/celeba_spoof.py` implements the full fetch/reassembly/label-index/
+extraction/cleanup mechanism for real — `CELEBA_SPOOF_VOLUMES` (the 74-volume list and drive IDs
+measured in § 2), `download_volumes`, `reassemble`, `build_label_index`, `extract_subset`,
+`cleanup`, and the orchestrating `fetch_celeba_spoof`. It is wired into
+`veriface data fetch celeba-spoof --tier`. `extract_subset`'s member-path-containment guard
+(reusing `veriface.models.sources.validate_member_path`, not reimplementing it) is fully unit
+tested against synthetic archives in `tests/unit/test_celeba_extract_safety.py` — no CelebA bytes
+needed. `fetch_celeba_spoof` checks for the corpus's local presence before doing anything else and
+raises `AcquisitionDeferredError` (pointing back at this document) when it is absent, which is the
+case for every invocation today. This is what Phase 2 calls once the deferral is lifted.
+
+`build_label_index`'s exact Spoof-Type-value → class mapping is inferred from the CelebA-Spoof
+README's documented field layout only (§ 1) — no real annotation JSON was ever opened this
+session, so this mapping is unverified pending Phase 2's first real download. This is flagged
+in the function's own docstring as the first thing to re-check once real data exists.
+
+## 11. Disk state at the end of this plan
 
 `du -sb "${VERIFACE_DATA_DIR}"` → `0` bytes. `data/celeba_spoof/raw/` was created as an empty
 directory (gitignored, confirmed via `git check-ignore -v`) and nothing was written into it.
 `git status --short` shows no path under `data/`.
+
+## 12. Decision record
+
+**Acquisition deferred to Phase 2 — decided by the user, 2026-08-08, on the measured numbers in
+this document.** The user explicitly directed: do not download the corpus, do not attempt any of
+the four candidate options, do not retry the blocked downloads. This plan closes with the
+byte-independent portion of the fetcher delivered (§ 10) and the extraction eval tier / committed
+manifest recorded as deferred, not done. Whoever picks this up in Phase 2 should start by
+re-reading § 5 (peak-disk arithmetic), § 6.5 (why the HF mirror is not a shortcut), and § 8 (the
+still-open raw-split-vs-multi-disk question) before choosing a sequence.

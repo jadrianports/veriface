@@ -12,6 +12,7 @@ import typer
 from veriface.config import get_settings
 from veriface.errors import VerifaceError
 from veriface_eval.datasets import config as dataset_config
+from veriface_eval.datasets.celeba_spoof import fetch_celeba_spoof
 from veriface_eval.datasets.lfw import fetch_lfw
 
 data_app = typer.Typer(no_args_is_help=True)
@@ -46,11 +47,18 @@ def fetch(dataset: str, tier: str = "eval") -> None:
         typer.echo(f"lfw  {dest}")
         return
 
-    # dataset == "celeba-spoof": not yet materialised in this plan — plan
-    # 01-07 replaces this body with a real fetcher wired to the real
-    # CelebA-Spoof label index and the `--tier` option declared above.
-    typer.echo(f"celeba-spoof  NOT YET MATERIALISED (tier={tier!r}) — see plan 01-07")
-    raise typer.Exit(code=1)
+    # dataset == "celeba-spoof": the fetcher is real (plan 01-07), but
+    # acquisition itself is deferred to Phase 2 — see
+    # docs/celeba-spoof-acquisition.md. fetch_celeba_spoof raises
+    # AcquisitionDeferredError (a VerifaceError) rather than attempting a
+    # download, unless a human has already placed a reassembled archive
+    # under the data dir.
+    try:
+        dest = fetch_celeba_spoof(settings.data_dir, tier)
+    except VerifaceError as exc:
+        typer.echo(f"celeba-spoof  FAILED  {exc}")
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"celeba-spoof  {dest}")
 
 
 @manifest_app.command()
