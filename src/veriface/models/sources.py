@@ -29,12 +29,19 @@ _DOWNLOAD_CHUNK_SIZE = 1 << 20  # 1 MiB — never buffer a multi-hundred-MB arch
 class ArtifactSource(Protocol):
     """A resolver capable of materializing an artifact spec to a local path."""
 
-    def materialize(self, spec: ArtifactSpec, cache_dir: Path, *, allow_download: bool) -> Path:
+    def materialize(
+        self, spec: ArtifactSpec, cache_dir: Path, *, allow_download: bool, force: bool = False
+    ) -> Path:
         """Return the local path to ``spec``'s artifact.
 
         Raises ``FileNotFoundError`` if ``allow_download`` is ``False`` and
         the artifact is not already cached — never triggers a download in
         that case (D-12).
+
+        ``force`` discards any cached copy and re-materializes from
+        upstream; it is consulted only when ``allow_download`` is ``True`` —
+        when downloads are disallowed the offline branch is unchanged and
+        keeps its D-12 guarantee that nothing is deleted or downloaded.
         """
         ...
 
@@ -42,7 +49,9 @@ class ArtifactSource(Protocol):
 class HuggingFaceSource:
     """Resolves specs whose ``source`` is ``"hf"`` via the Hugging Face Hub."""
 
-    def materialize(self, spec: ArtifactSpec, cache_dir: Path, *, allow_download: bool) -> Path:
+    def materialize(
+        self, spec: ArtifactSpec, cache_dir: Path, *, allow_download: bool, force: bool = False
+    ) -> Path:
         try:
             path = hf_hub_download(
                 repo_id=spec.locator,
@@ -50,6 +59,7 @@ class HuggingFaceSource:
                 revision=spec.revision,
                 cache_dir=cache_dir,
                 local_files_only=not allow_download,
+                force_download=force and allow_download,
             )
         except LocalEntryNotFoundError as exc:
             raise FileNotFoundError(f"Artifact {spec.name!r} is not cached in {cache_dir}") from exc
@@ -124,10 +134,12 @@ class HttpsSource:
       — a multi-hundred-MB container never sits in the cache permanently).
     """
 
-    def materialize(self, spec: ArtifactSpec, cache_dir: Path, *, allow_download: bool) -> Path:
+    def materialize(
+        self, spec: ArtifactSpec, cache_dir: Path, *, allow_download: bool, force: bool = False
+    ) -> Path:
         dest_dir = cache_dir / "https" / spec.name
         dest_path = dest_dir / spec.filename
-        if dest_path.exists():
+        if dest_path.exists() and not (force and allow_download):
             return dest_path
         if not allow_download:
             # D-12: the offline path must not construct an httpx client at all.

@@ -28,7 +28,10 @@ def fetch(profile: str = "default") -> None:
             typer.echo(f"{spec.name}  FAILED  {result}")
             failed = True
             continue
-        typer.echo(f"{spec.name}  {result}")
+        if result.repaired:
+            typer.echo(f"{spec.name}  REPAIRED  {result.path}")
+        else:
+            typer.echo(f"{spec.name}  {result.path}")
     if failed:
         raise typer.Exit(code=1)
 

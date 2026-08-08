@@ -11,18 +11,29 @@ constructing a session.
 from __future__ import annotations
 
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
 import structlog
 
 from veriface.config import VerifaceSettings
 from veriface.errors import ArtifactIntegrityError, ArtifactNotCachedError, VerifaceError
-from veriface.hashing import sha256_bytes
+from veriface.hashing import sha256_bytes, sha256_file
 from veriface.models.runtime import Session, open_session
 from veriface.models.sources import resolve_source
 from veriface.models.specs import PROFILES, ArtifactSpec
 
 logger = structlog.get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class FetchOutcome:
+    """The result of fetching one spec: its cached path, and whether a
+    pin-mismatch repair happened along the way (T-01-32 — a repair must be
+    visible, not indistinguishable from a no-op fetch)."""
+
+    path: Path
+    repaired: bool
 
 
 class ModelRegistry:
@@ -41,29 +52,61 @@ class ModelRegistry:
         """
         paths: list[Path] = []
         for spec in PROFILES[profile]:
-            source = resolve_source(spec)
-            path = source.materialize(spec, self._settings.cache_dir, allow_download=True)
-            paths.append(path)
+            outcome = self._fetch_one(spec)
+            paths.append(outcome.path)
         return paths
 
-    def fetch_each(self, profile: str) -> Iterator[tuple[ArtifactSpec, Path | VerifaceError]]:
+    def fetch_each(
+        self, profile: str
+    ) -> Iterator[tuple[ArtifactSpec, FetchOutcome | VerifaceError]]:
         """Download every spec in ``profile``, yielding a per-spec result.
 
         Unlike ``fetch``, a single spec's failure does not abort the rest of
         the profile — each ``(spec, result)`` pair carries either the
-        materialized ``Path`` or the ``VerifaceError`` that spec raised, so a
-        caller (the CLI's ``fetch`` command) can report every failure without
-        re-implementing this loop or reaching for the network itself (WR-01:
-        this and ``fetch`` remain the only network-permitted methods).
+        ``FetchOutcome`` that spec materialized to or the ``VerifaceError``
+        it raised, so a caller (the CLI's ``fetch`` command) can report every
+        failure without re-implementing this loop or reaching for the
+        network itself (WR-01: this and ``fetch`` remain the only
+        network-permitted methods).
         """
         for spec in PROFILES[profile]:
-            source = resolve_source(spec)
             try:
-                path = source.materialize(spec, self._settings.cache_dir, allow_download=True)
+                outcome = self._fetch_one(spec)
             except VerifaceError as exc:
                 yield spec, exc
                 continue
-            yield spec, path
+            yield spec, outcome
+
+    def _fetch_one(self, spec: ArtifactSpec) -> FetchOutcome:
+        """Materialize ``spec``, verify it against its pin, and repair once
+        on a mismatch (T-01-01, T-01-29).
+
+        A cached artifact is hashed before it is ever reported as fetched.
+        On a match it is returned untouched — a warm cache costs one hash,
+        never a re-download. On a mismatch a structured event names the
+        spec, the source is asked for exactly one forced re-materialization,
+        and the result is hashed again: a second failure is upstream drift,
+        not local corruption, and a loop cannot fix that, so it becomes a
+        named ``ArtifactIntegrityError`` rather than another retry.
+        """
+        source = resolve_source(spec)
+        path = source.materialize(spec, self._settings.cache_dir, allow_download=True)
+        computed = sha256_file(path)
+        if computed == spec.sha256:
+            return FetchOutcome(path=path, repaired=False)
+
+        logger.warning(
+            "artifact_pin_mismatch_repairing",
+            spec_name=spec.name,
+            expected_sha256=spec.sha256,
+            computed_sha256=computed,
+            cached_path=str(path),
+        )
+        path = source.materialize(spec, self._settings.cache_dir, allow_download=True, force=True)
+        computed = sha256_file(path)
+        if computed != spec.sha256:
+            raise ArtifactIntegrityError(spec.name, spec.sha256, computed, path)
+        return FetchOutcome(path=path, repaired=True)
 
     def path(self, spec: ArtifactSpec) -> Path:
         """Return the cached local path for ``spec`` without downloading.

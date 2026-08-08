@@ -26,7 +26,9 @@ class _StubSource:
         self._path = path
         self._exists = exists
 
-    def materialize(self, spec: object, cache_dir: Path, *, allow_download: bool) -> Path:
+    def materialize(
+        self, spec: object, cache_dir: Path, *, allow_download: bool, force: bool = False
+    ) -> Path:
         if not self._exists:
             raise FileNotFoundError(str(self._path))
         return self._path

@@ -16,7 +16,7 @@ class _StubSource:
         self._path = path
         self._exists = exists
 
-    def materialize(self, spec, cache_dir, *, allow_download: bool):
+    def materialize(self, spec, cache_dir, *, allow_download: bool, force: bool = False):
         if not self._exists:
             raise FileNotFoundError(str(self._path))
         return self._path
@@ -54,7 +54,7 @@ def test_fetch_reports_failed_for_a_spec_whose_source_cannot_materialize(
 
     def _raising_stub_factory(spec):
         class _RaisingSource:
-            def materialize(self, spec, cache_dir, *, allow_download):
+            def materialize(self, spec, cache_dir, *, allow_download, force: bool = False):
                 from veriface.errors import ArtifactSourceError
 
                 raise ArtifactSourceError("boom")

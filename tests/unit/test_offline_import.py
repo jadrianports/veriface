@@ -58,7 +58,9 @@ def test_registry_path_on_populated_cache_does_not_touch_the_network(
     blocked_sockets, fake_artifact, monkeypatch, tmp_path
 ) -> None:
     class _StubSource:
-        def materialize(self, spec: object, cache_dir: object, *, allow_download: bool) -> object:
+        def materialize(
+            self, spec: object, cache_dir: object, *, allow_download: bool, force: bool = False
+        ) -> object:
             return fake_artifact.path
 
     monkeypatch.setattr(registry_module, "resolve_source", lambda spec: _StubSource())
