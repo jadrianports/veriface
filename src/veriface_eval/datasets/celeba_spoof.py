@@ -389,7 +389,21 @@ def fetch_celeba_spoof(data_dir: Path, tier: str) -> Path:
     Deliberately does **not** call ``download_volumes``/``reassemble`` itself
     in the deferred case — those remain available as direct entry points for
     Phase 2 once the developer decides to lift the deferral.
+
+    Validates ``tier`` against ``dataset_config.TIERS`` before anything else
+    (WR-05): the caller-facing CLI only validates ``dataset``, not ``tier``,
+    so an unknown tier name reaching this function must raise a named
+    ``VerifaceError`` (``TierNotFoundError``) rather than the bare
+    ``KeyError`` a direct ``TIERS[tier]`` lookup would raise once a human has
+    placed a reassembled archive under ``raw_dir`` — a ``KeyError`` is not a
+    ``VerifaceError`` and would fall straight through the CLI's
+    ``except VerifaceError`` handler as an unhandled traceback.
     """
+    from veriface_eval.datasets import config as dataset_config
+
+    if tier not in dataset_config.TIERS:
+        raise dataset_config.TierNotFoundError(tier)
+
     raw_dir = data_dir / RAW_SUBDIR
     reassembled_path = raw_dir / _REASSEMBLED_NAME
     if not reassembled_path.exists():
@@ -397,7 +411,6 @@ def fetch_celeba_spoof(data_dir: Path, tier: str) -> Path:
 
     # Reachable only once a human has placed a valid reassembled archive —
     # not exercised by this plan (no bytes were available to test it against).
-    from veriface_eval.datasets import config as dataset_config
     from veriface_eval.datasets.manifest import build_manifest, write_manifest
 
     tier_spec = dataset_config.TIERS[tier]

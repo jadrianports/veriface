@@ -98,6 +98,17 @@ def test_cli_manifest_verify_reports_mismatch_for_sentinel_digest() -> None:
     assert "MISMATCH" in result.output
 
 
+def test_cli_data_fetch_celeba_spoof_reports_failed_for_unknown_tier(isolated_settings) -> None:
+    """WR-05: an unknown ``--tier`` must produce a clean ``FAILED`` line and
+    exit code 1 through the CLI's existing ``except VerifaceError`` handler —
+    not an unhandled traceback from a bare ``KeyError``."""
+    result = runner.invoke(data_app, ["fetch", "celeba-spoof", "--tier", "not-a-real-tier"])
+
+    assert result.exit_code == 1
+    assert "celeba-spoof  FAILED" in result.output
+    assert "not-a-real-tier" in result.output
+
+
 def test_cli_manifest_build_refuses_to_overwrite_without_force(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -17,12 +17,13 @@ from pathlib import Path
 
 import pytest
 
-from veriface.errors import ArtifactSourceError
+from veriface.errors import ArtifactSourceError, VerifaceError
 from veriface_eval.datasets.celeba_spoof import (
     AcquisitionDeferredError,
     extract_subset,
     fetch_celeba_spoof,
 )
+from veriface_eval.datasets.config import TierNotFoundError
 from veriface_eval.datasets.manifest import ManifestRow
 
 
@@ -150,3 +151,18 @@ def test_fetch_raises_acquisition_deferred_when_corpus_absent(tmp_path: Path) ->
     assert "deferred" in message
     assert "docs/celeba-spoof-acquisition.md" in message
     assert not (tmp_path / "celeba_spoof").exists()
+
+
+def test_fetch_raises_named_error_for_unknown_tier_not_a_bare_keyerror(tmp_path: Path) -> None:
+    """WR-05: an unknown tier must raise TierNotFoundError (a VerifaceError,
+    caught cleanly by the CLI's ``except VerifaceError`` handler) rather than
+    a bare ``KeyError`` from a direct ``TIERS[tier]`` lookup. Checked before
+    the corpus-presence check, so this holds regardless of whether a human
+    has placed a reassembled archive under ``raw_dir`` — the exact scenario
+    where an unvalidated ``tier`` would otherwise first become reachable.
+    """
+    with pytest.raises(TierNotFoundError) as exc_info:
+        fetch_celeba_spoof(tmp_path, "not-a-real-tier")
+
+    assert isinstance(exc_info.value, VerifaceError)
+    assert "not-a-real-tier" in str(exc_info.value)
