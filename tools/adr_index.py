@@ -60,6 +60,7 @@ def discover_records() -> list[Record]:
         title_match = TITLE_RE.search(text)
         status_match = STATUS_RE.search(text)
         title = title_match.group("title") if title_match else path.stem
+        title = re.sub(rf"^{re.escape(number)}:\s*", "", title)
         status = status_match.group("status") if status_match else "unknown"
         records.append((number, title, status, path))
     records.sort(key=lambda record: record[0])
