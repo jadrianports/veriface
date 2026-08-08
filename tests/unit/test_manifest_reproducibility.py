@@ -18,6 +18,7 @@ from pydantic import ValidationError
 from veriface_eval.datasets.manifest import (
     EmptyLabelIndexError,
     InsufficientSubjectPoolError,
+    InvalidSamplerParamsError,
     ManifestHeader,
     ManifestRow,
     build_manifest,
@@ -135,9 +136,9 @@ def test_no_manifest_row_carries_a_video_replay_class() -> None:
         )
 
 
-def test_class_balance_within_declared_tolerance() -> None:
+@pytest.mark.parametrize("tolerance", [0.0, 0.2, 0.5])
+def test_class_balance_within_declared_tolerance(tolerance: float) -> None:
     label_index = _make_label_index(subjects=24)
-    tolerance = 0.0
     params = _params(12, tolerance=tolerance)
     _, rows = build_manifest(label_index, tier="eval", seed=11, params=params)
 
@@ -148,6 +149,34 @@ def test_class_balance_within_declared_tolerance() -> None:
         allowed = tolerance * max(live_count, count)
         assert abs(live_count - count) <= allowed + 1e-9, (
             f"{spoof_class} count {count} exceeds tolerance against live count {live_count}"
+        )
+
+
+def test_nonzero_tolerance_keeps_at_least_as_many_rows_as_exact_balance() -> None:
+    """WR-06: a caller who raises class_balance_tolerance to keep more images
+    per class must actually get more rows back, not the exact-balance count
+    silently substituted in — the bug this test guards against."""
+    label_index = _make_label_index(subjects=24)
+
+    _, exact_rows = build_manifest(label_index, tier="eval", seed=11, params=_params(12))
+    _, loose_rows = build_manifest(
+        label_index, tier="eval", seed=11, params=_params(12, tolerance=0.5)
+    )
+
+    assert len(loose_rows) >= len(exact_rows)
+    # At least one class must actually have kept more rows under the looser
+    # tolerance, or this parameter still has no observable effect.
+    assert Counter(row.spoof_class for row in loose_rows) != Counter(
+        row.spoof_class for row in exact_rows
+    )
+
+
+@pytest.mark.parametrize("bad_tolerance", [-0.1, 1.0, 1.5])
+def test_out_of_range_tolerance_raises_named_error(bad_tolerance: float) -> None:
+    label_index = _make_label_index(subjects=24)
+    with pytest.raises(InvalidSamplerParamsError):
+        build_manifest(
+            label_index, tier="eval", seed=1, params=_params(10, tolerance=bad_tolerance)
         )
 
 

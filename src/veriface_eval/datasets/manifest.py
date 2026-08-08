@@ -149,6 +149,11 @@ def _validate_params(params: Mapping[str, Any]) -> tuple[int, int, float, dict[s
         raise InvalidSamplerParamsError("params['target_subjects'] must be positive")
     if subject_pool_offset < 0:
         raise InvalidSamplerParamsError("params['subject_pool_offset'] must be non-negative")
+    if not (0.0 <= class_balance_tolerance < 1.0):
+        raise InvalidSamplerParamsError(
+            "params['class_balance_tolerance'] must be in [0.0, 1.0), got "
+            f"{class_balance_tolerance}"
+        )
     if not splits:
         raise InvalidSamplerParamsError("params['splits'] must declare at least one split")
     total = sum(splits.values())
@@ -212,25 +217,42 @@ def _assign_splits(
 
 
 def _balance_classes(
-    rows_by_class: Mapping[str, list[LabelIndexEntry]], *, seed: int, tier: str
+    rows_by_class: Mapping[str, list[LabelIndexEntry]],
+    *,
+    seed: int,
+    tier: str,
+    class_balance_tolerance: float = 0.0,
 ) -> list[LabelIndexEntry]:
-    """Downsample every class to the smallest class's count (deterministic, exact balance).
+    """Downsample every class so no two classes' final counts differ by more
+    than ``class_balance_tolerance`` of the larger one (deterministic).
 
-    Exact equality always satisfies any non-negative ``class_balance_tolerance``
-    — this is a legitimate, simple balancing strategy (cap to the minority
-    class), not a shortcut around the invariant.
+    ``class_balance_tolerance=0.0`` reproduces exact balance: every class
+    downsampled to exactly the minority class's count, the previous
+    unconditional behaviour. A positive tolerance raises the per-class cap to
+    ``floor(target_count / (1 - class_balance_tolerance))`` instead of
+    ``target_count`` — a class already at or below that cap keeps its own
+    count untouched (looser balancing, less discarded data), and a class
+    above it is downsampled to the cap rather than all the way to
+    ``target_count``. For any two classes' final counts ``x``, ``y`` this
+    guarantees ``abs(x - y) <= class_balance_tolerance * max(x, y)`` (WR-06 —
+    previously validated and recorded but never actually consulted here).
     """
     if not rows_by_class:
         return []
     target_count = min(len(rows) for rows in rows_by_class.values())
+    cap = (
+        int(target_count / (1.0 - class_balance_tolerance))
+        if class_balance_tolerance > 0.0
+        else target_count
+    )
     balanced: list[LabelIndexEntry] = []
     for spoof_class in sorted(rows_by_class):
         candidates = sorted(rows_by_class[spoof_class])
-        if len(candidates) <= target_count:
+        if len(candidates) <= cap:
             balanced.extend(candidates)
             continue
         rng = random.Random(f"{seed}:{tier}:balance:{spoof_class}")
-        balanced.extend(rng.sample(candidates, k=target_count))
+        balanced.extend(rng.sample(candidates, k=cap))
     return balanced
 
 
@@ -275,7 +297,9 @@ def build_manifest(
         for entry in by_subject[subject_id]:
             rows_by_class.setdefault(entry[2], []).append(entry)
 
-    balanced_entries = _balance_classes(rows_by_class, seed=seed, tier=tier)
+    balanced_entries = _balance_classes(
+        rows_by_class, seed=seed, tier=tier, class_balance_tolerance=class_balance_tolerance
+    )
 
     rows = [
         ManifestRow(
