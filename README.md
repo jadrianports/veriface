@@ -70,6 +70,21 @@ identical, or pin a freshly verified digest if they are not, then run `veriface 
 against the repointed spec. The digest is what identifies the correct bytes; the URL is only where
 they currently happen to be found.
 
+### Recovering a corrupted local cache
+
+`veriface models verify --profile <profile>` hashes every cached artifact against its pin and
+prints `<name>  MISMATCH expected=<pin> actual=<computed>` for anything that fails, exiting
+non-zero. `veriface models fetch --profile <profile>` is the repair command: it hashes each cached
+artifact before reporting it as fetched, re-downloads exactly the ones that fail their pin, and
+prints `<name>  REPAIRED  <path>` for anything it had to repair — an already-correct artifact still
+prints the plain `<name>  <path>` line, unchanged. Re-run `veriface models verify` afterward to
+confirm the repair.
+
+If `fetch` still reports an artifact as `FAILED` after that re-download, the freshly downloaded
+bytes miss the pin too — that is upstream drift, not local corruption, and a re-download loop
+cannot fix it. Do not edit the recorded `sha256` to match whatever arrived. Treat it as the spec-
+repoint case above: verify the correct digest independently first, then repoint the spec.
+
 ## Status
 
 Phase 1 (foundation, artifacts, and data strategy) is in progress. No detection, alignment,

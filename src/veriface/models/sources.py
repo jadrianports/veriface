@@ -130,8 +130,14 @@ class HttpsSource:
       streamed to a temporary file, verified against ``spec.archive_sha256``
       with ``sha256_file`` *before* ``zipfile.ZipFile`` is ever constructed
       (T-01-10 — a hostile container never reaches the parser), then exactly
-      ``member`` is extracted (T-01-03) and the archive is deleted (T-01-12
-      — a multi-hundred-MB container never sits in the cache permanently).
+      ``member`` is extracted (T-01-03) into a staging directory and
+      verified against ``spec.sha256`` before it replaces anything at
+      ``dest_path`` — the container check protects the zip parser, the
+      member check protects the thing that actually gets loaded, and
+      staging means a failed repair can never destroy a merely-corrupt
+      cache entry. The staging directory and the archive are both removed
+      on the success and the failure path (T-01-12 — a multi-hundred-MB
+      container never sits in the cache permanently).
     """
 
     def materialize(
@@ -169,6 +175,7 @@ class HttpsSource:
         assert spec.member is not None  # narrowed by the caller
         assert spec.archive_sha256 is not None  # enforced by ArtifactSpec's model validator
         container_path = dest_dir / "_container.zip.part"
+        staging_dir = dest_dir / "_staging"
         self._download(spec.locator, container_path)
 
         computed = sha256_file(container_path)
@@ -178,10 +185,24 @@ class HttpsSource:
                 f"{spec.name} (archive)", spec.archive_sha256, computed, container_path
             )
 
-        extracted_path = extract_member_safely(container_path, spec.member, dest_dir)
-        if extracted_path != dest_path:
+        try:
+            # Extract into a staging directory, never straight over
+            # dest_path: for both buffalo_l specs the member name equals
+            # the filename, so extracting directly into dest_dir would
+            # overwrite a merely-corrupt cached artifact before knowing
+            # whether the replacement is any good. The container check
+            # above protects the zip parser (T-01-10); this member check
+            # protects the thing that actually gets loaded.
+            extracted_path = extract_member_safely(container_path, spec.member, staging_dir)
+            member_computed = sha256_file(extracted_path)
+            if member_computed != spec.sha256:
+                raise ArtifactIntegrityError(
+                    spec.name, spec.sha256, member_computed, extracted_path
+                )
             extracted_path.replace(dest_path)
-        container_path.unlink()
+        finally:
+            shutil.rmtree(staging_dir, ignore_errors=True)
+            container_path.unlink(missing_ok=True)
 
     @staticmethod
     def _download(url: str, dest_path: Path) -> None:

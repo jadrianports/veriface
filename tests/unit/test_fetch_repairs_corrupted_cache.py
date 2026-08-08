@@ -16,6 +16,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
 import veriface.cli.models as models_module
 import veriface.models.registry as registry_module
@@ -23,7 +24,6 @@ from veriface.cli import app
 from veriface.errors import ArtifactNotCachedError
 from veriface.hashing import sha256_file
 from veriface.models.registry import ModelRegistry
-from typer.testing import CliRunner
 
 runner = CliRunner()
 
@@ -139,7 +139,11 @@ def test_verify_command_on_corrupted_cache_still_reports_mismatch_unchanged(
     result = runner.invoke(app, ["models", "verify", "--profile", "default"])
 
     assert result.exit_code == 1
-    assert f"{fake_artifact.spec.name}  MISMATCH expected={fake_artifact.spec.sha256} actual={computed}" in result.stdout
+    expected_line = (
+        f"{fake_artifact.spec.name}  MISMATCH expected={fake_artifact.spec.sha256} "
+        f"actual={computed}"
+    )
+    assert expected_line in result.stdout
     assert stub.forced_calls == 0
 
 
