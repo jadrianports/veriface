@@ -25,15 +25,18 @@ venv/
 htmlcov/
 
 # Model artifacts and datasets (never committed — fetched by hash at load time)
-models/
-weights/
+# Anchored to the repo root (leading `/`) so these don't also match source
+# packages of the same name, e.g. src/veriface/models/ (D-03) or a future
+# src/veriface/templates/ (ARCHITECTURE.md's templates/store.py).
+/models/
+/weights/
 *.onnx
 *.pb
 *.pth
 *.pkl
-data/
-datasets/
-outputs/
+/data/
+/datasets/
+/outputs/
 
 # Local secrets and config
 .env
@@ -43,9 +46,9 @@ outputs/
 *.pem
 
 # Biometric data — never commit
-captures/
-enrollments/
-templates/
+/captures/
+/enrollments/
+/templates/
 
 # OS
 .DS_Store
