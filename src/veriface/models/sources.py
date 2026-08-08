@@ -109,8 +109,13 @@ class HttpsSource:
     """Resolves specs whose ``source`` is ``"https"`` via a plain HTTPS download.
 
     Two shapes, distinguished by whether ``spec.member`` is set:
-    - ``member`` is ``None``: ``spec.locator`` is downloaded directly and
-      cached under ``spec.filename``.
+    - ``member`` is ``None``: ``spec.locator`` is downloaded directly to a
+      ``.part`` temp file, verified against ``spec.sha256`` with
+      ``sha256_file`` (WR-02 — a fetch-time check symmetric with the
+      archive-member shape below, not deferred to the next ``verify``/``load``
+      call), and only then renamed into the cache under ``spec.filename``. A
+      digest mismatch deletes the ``.part`` file and raises
+      ``ArtifactIntegrityError`` before anything is cached.
     - ``member`` is set: ``spec.locator`` is an archive. The archive is
       streamed to a temporary file, verified against ``spec.archive_sha256``
       with ``sha256_file`` *before* ``zipfile.ZipFile`` is ever constructed
@@ -138,6 +143,12 @@ class HttpsSource:
     def _materialize_direct_file(self, spec: ArtifactSpec, dest_dir: Path, dest_path: Path) -> None:
         tmp_path = dest_dir / f"{spec.filename}.part"
         self._download(spec.locator, tmp_path)
+
+        computed = sha256_file(tmp_path)
+        if computed != spec.sha256:
+            tmp_path.unlink(missing_ok=True)
+            raise ArtifactIntegrityError(spec.name, spec.sha256, computed, tmp_path)
+
         tmp_path.replace(dest_path)
 
     def _materialize_archive_member(
