@@ -72,6 +72,16 @@ markers = [
 [tool.coverage.run]
 source = ["src"]
 
+# Measured 71% on `pytest tests/unit --cov=src` (two consecutive runs agreed,
+# 2026-08-08), rounded down to the nearest 5% per D-30 — a real number, not a
+# ratcheting gate or an aspirational target. Same scope and threshold as the
+# CI `unit` job's `--cov-fail-under`; both must move together. Uncovered
+# remainder is concentrated in network-touching code paths (artifact
+# download/verify, dataset fetch, CLI command bodies) that the integration
+# suite exercises instead — see 01-08-SUMMARY.md for the module breakdown.
+[tool.coverage.report]
+fail_under = 70
+
 [dependency-groups]
 dev = [
     "coverage>=7.15.4",
