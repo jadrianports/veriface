@@ -17,7 +17,7 @@ import structlog
 
 from veriface.config import VerifaceSettings
 from veriface.errors import ArtifactIntegrityError, ArtifactNotCachedError, VerifaceError
-from veriface.hashing import sha256_file
+from veriface.hashing import sha256_bytes
 from veriface.models.runtime import Session, open_session
 from veriface.models.sources import resolve_source
 from veriface.models.specs import PROFILES, ArtifactSpec
@@ -86,9 +86,16 @@ class ModelRegistry:
         (D-09): raises ``ArtifactIntegrityError`` naming the spec, the
         expected digest, the computed digest, and the cached path on
         mismatch, and only then calls ``open_session``.
+
+        Reads ``cached_path`` exactly once into memory and verifies/loads
+        that same buffer (WR-08) — a second by-name open of ``cached_path``
+        for ``open_session`` would leave a TOCTOU window in which a process
+        with write access to the cache directory could swap the file's
+        contents between the digest check and session construction.
         """
         cached_path = self.path(spec)
-        computed_sha256 = sha256_file(cached_path)
+        model_bytes = cached_path.read_bytes()
+        computed_sha256 = sha256_bytes(model_bytes)
         if computed_sha256 != spec.sha256:
             raise ArtifactIntegrityError(spec.name, spec.sha256, computed_sha256, cached_path)
         logger.info(
@@ -97,7 +104,7 @@ class ModelRegistry:
             revision=spec.revision,
             sha256=computed_sha256,
         )
-        return open_session(cached_path)
+        return open_session(model_bytes, source_label=cached_path)
 
 
 def _profile_for_spec(spec: ArtifactSpec) -> str:

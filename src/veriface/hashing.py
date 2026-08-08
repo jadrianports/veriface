@@ -25,3 +25,15 @@ def sha256_file(path: Path, chunk_size: int = 1 << 20) -> str:
                 break
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def sha256_bytes(data: bytes) -> str:
+    """Return ``data``'s lowercase hex SHA-256 digest.
+
+    For a caller that has already read a file fully into memory (WR-08:
+    ``ModelRegistry.load`` verifies and loads the same in-memory buffer
+    rather than opening the cached path by name twice, closing the TOCTOU
+    window between digest verification and session construction) and would
+    otherwise re-open the same path a second time just to hash it again.
+    """
+    return hashlib.sha256(data).hexdigest()

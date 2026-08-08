@@ -40,8 +40,17 @@ def _half_logical_cores() -> int:
     return max(1, total // 2)
 
 
-def open_session(path: Path) -> Session:
-    """Construct a CPU-only ``InferenceSession`` over ``path``.
+def open_session(model_bytes: bytes, *, source_label: Path | str) -> Session:
+    """Construct a CPU-only ``InferenceSession`` over an already-read model buffer.
+
+    Takes ``bytes`` rather than a path (WR-08): the caller reads the cached
+    file exactly once, verifies that buffer's digest, and passes the same
+    buffer here — closing the TOCTOU window a path-based
+    ``ort.InferenceSession(str(path), ...)`` call would leave between digest
+    verification and session construction (two separate by-name opens of the
+    same path, either of which a writer with cache-directory access could
+    race). ``source_label`` is used only to name the artifact in the
+    CPU-fallback error message below.
 
     Raises ``VerifaceError`` if the realised provider list is not exactly
     ``["CPUExecutionProvider"]`` — the silent-fallback trap RESEARCH names.
@@ -50,7 +59,7 @@ def open_session(path: Path) -> Session:
     options.intra_op_num_threads = _half_logical_cores()
 
     session = ort.InferenceSession(
-        str(path),
+        model_bytes,
         sess_options=options,
         providers=[_CPU_PROVIDER],
     )
@@ -58,7 +67,7 @@ def open_session(path: Path) -> Session:
     providers = session.get_providers()
     if providers != [_CPU_PROVIDER]:
         raise VerifaceError(
-            f"Expected CPU-only execution provider for {path}, but ONNX Runtime "
+            f"Expected CPU-only execution provider for {source_label}, but ONNX Runtime "
             f"realised providers={providers!r}. Refusing a silent non-CPU fallback."
         )
 

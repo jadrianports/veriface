@@ -39,11 +39,15 @@ def _patch_stub_source(monkeypatch: pytest.MonkeyPatch, path: Path, *, exists: b
 
 
 def _patch_open_session_sentinel(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(registry_module, "open_session", lambda path: SENTINEL_SESSION)
+    # WR-08: open_session now takes (model_bytes, *, source_label) rather
+    # than a path — the stub's signature mirrors that.
+    monkeypatch.setattr(
+        registry_module, "open_session", lambda model_bytes, *, source_label: SENTINEL_SESSION
+    )
 
 
 def _patch_open_session_forbidden(monkeypatch: pytest.MonkeyPatch) -> None:
-    def _forbidden(path: object) -> object:
+    def _forbidden(model_bytes: object, *, source_label: object) -> object:
         raise AssertionError("open_session must not be called when verification fails")
 
     monkeypatch.setattr(registry_module, "open_session", _forbidden)
@@ -61,6 +65,38 @@ def test_matching_digest_loads_a_session(fake_artifact, monkeypatch, tmp_path):
     session = registry.load(fake_artifact.spec)
 
     assert session is SENTINEL_SESSION
+
+
+def test_load_reads_the_cached_path_exactly_once(fake_artifact, monkeypatch, tmp_path):
+    """WR-08: verifying and loading must share one read of the cached file —
+    a second by-name open (as a path-based ``open_session`` would need) would
+    reopen a TOCTOU window between the digest check and session construction.
+    """
+    _patch_stub_source(monkeypatch, fake_artifact.path)
+    captured_model_bytes: list[bytes] = []
+
+    def _capturing_open_session(model_bytes: bytes, *, source_label: object) -> object:
+        captured_model_bytes.append(model_bytes)
+        return SENTINEL_SESSION
+
+    monkeypatch.setattr(registry_module, "open_session", _capturing_open_session)
+
+    read_call_count = 0
+    real_read_bytes = Path.read_bytes
+
+    def _counting_read_bytes(self: Path) -> bytes:
+        nonlocal read_call_count
+        read_call_count += 1
+        return real_read_bytes(self)
+
+    monkeypatch.setattr(Path, "read_bytes", _counting_read_bytes)
+    registry = _registry(tmp_path)
+
+    session = registry.load(fake_artifact.spec)
+
+    assert session is SENTINEL_SESSION
+    assert read_call_count == 1
+    assert captured_model_bytes == [fake_artifact.path.read_bytes()]
 
 
 def test_one_byte_flip_raises_integrity_error(fake_artifact, monkeypatch, tmp_path):
