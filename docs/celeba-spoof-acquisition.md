@@ -93,7 +93,7 @@ disk-budget decision.
 
 All four sequences below require the *entire* corpus to be locally present at some point, because
 (per § 1) the per-image labels needed to build the manifest live inside the same archive as the
-images, and (per the GitHub issue 01-RESEARCH.md already found, `cat CelebA_Spoof.zip.0* > 
+images, and (per the GitHub issue 01-RESEARCH.md already found, `cat CelebA_Spoof.zip.0* >
 CelebA_Spoof.zip` then `unzip`) the volumes are strongly implied to be a **raw byte-level split**
 of one file, not a zip-aware multi-disk archive with independent per-entry disk metadata — see the
 open question in § 8. Under that (unconfirmed but implied) assumption, no entry's compressed

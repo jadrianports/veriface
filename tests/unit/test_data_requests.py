@@ -77,7 +77,9 @@ def test_bfw_follow_up_date_is_real_and_later_than_submission() -> None:
     bfw_row = _find_row(rows, "BFW")
     submitted = date.fromisoformat(bfw_row[1])
     follow_up_cell = bfw_row[4]
-    assert _DATE_RE.fullmatch(follow_up_cell), f"BFW Follow-up date is not YYYY-MM-DD: {follow_up_cell!r}"
+    assert _DATE_RE.fullmatch(follow_up_cell), (
+        f"BFW Follow-up date is not YYYY-MM-DD: {follow_up_cell!r}"
+    )
     follow_up = date.fromisoformat(follow_up_cell)
     assert follow_up > submitted, "BFW follow-up date must be later than the submission date"
 
