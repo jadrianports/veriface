@@ -9,7 +9,7 @@ description = "Open-set face recognition + presentation-attack detection for Pyt
 requires-python = ">=3.12"
 license = "Apache-2.0"
 dependencies = [
-  "huggingface-hub>=1.27,<2",
+  "huggingface-hub>=1.29.0,<2",
   "pydantic>=2.13,<3",
   "pydantic-settings>=2.15,<3",
   "typer>=0.27,<1",
